@@ -218,3 +218,15 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# AeroVision AI: files that must not be committed
+media/
+outputs/
+runs/
+*.mp4
+*.avi
+*.mov
+
+# The trained weights are small (about 5 MB) and are part of the project
+!models/best.pt
+

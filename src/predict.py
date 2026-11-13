@@ -5,8 +5,8 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-DEFAULT_WEIGHTS = Path("models/best.pt")
-DEFAULT_OUTPUT = Path("outputs")
+from src.config import DEFAULT_CONF, DEFAULT_IMGSZ, DEFAULT_OUTPUT, DEFAULT_WEIGHTS
+from src.detector import AeroVisionDetector
 
 
 def parse_args() -> argparse.Namespace:
@@ -15,8 +15,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--source", required=True, help="Image, folder or video to analyse.")
     parser.add_argument("--weights", default=str(DEFAULT_WEIGHTS), help="Path to the trained weights.")
-    parser.add_argument("--conf", type=float, default=0.25, help="Minimum confidence to keep a detection.")
-    parser.add_argument("--imgsz", type=int, default=640, help="Image size used for inference.")
+    parser.add_argument("--conf", type=float, default=DEFAULT_CONF, help="Minimum confidence to keep a detection.")
+    parser.add_argument("--imgsz", type=int, default=DEFAULT_IMGSZ, help="Image size used for inference.")
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help="Folder where results are saved.")
     parser.add_argument("--device", default=None, help="Device: 0 for GPU, cpu for CPU. Automatic by default.")
     return parser.parse_args()
@@ -32,27 +32,16 @@ def main() -> int:
         print(f"Weights not found: {args.weights}", file=sys.stderr)
         return 1
 
-    # Imported here so that argument errors are reported without loading PyTorch.
-    from ultralytics import YOLO
-
-    model = YOLO(args.weights)
-    counts = Counter()
-
-    # stream=True processes one frame at a time and keeps memory usage low on long videos.
-    for result in model.predict(
-        source=args.source,
+    detector = AeroVisionDetector(
+        weights=Path(args.weights),
         conf=args.conf,
         imgsz=args.imgsz,
         device=args.device,
-        save=True,
-        stream=True,
-        verbose=False,
-        project=args.output,
-        name="predictions",
-        exist_ok=True,
-    ):
-        for class_id in result.boxes.cls.tolist():
-            counts[result.names[int(class_id)]] += 1
+    )
+
+    counts: Counter = Counter()
+    for result in detector.predict_source(args.source, args.output):
+        counts.update(detector.count_classes(result))
 
     print("Detections per class (summed over all frames):")
     for name, total in sorted(counts.items()):
